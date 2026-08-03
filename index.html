@@ -539,10 +539,18 @@ async function syncSheets() {
   try {
     const r=await fetch(url+'?t='+Date.now(),{method:'GET',cache:'no-store'}); const j=await r.json();
     saveExpenses(j.data||[]);
-    if(j.cats){
+    // Category sync. The Sheet's Config cell is the shared source of truth.
+    const localHasCats = getCustomCats().length>0 || Object.keys(getBaseCatOverrides()).length>0 || getHiddenBaseCats().length>0;
+    const remoteHasCats = j.cats && ((j.cats.customCats&&j.cats.customCats.length) || (j.cats.overrides&&Object.keys(j.cats.overrides).length) || (j.cats.hidden&&j.cats.hidden.length));
+    if(remoteHasCats){
       if(j.cats.customCats!==undefined) saveCustomCats(j.cats.customCats);
       if(j.cats.overrides!==undefined) saveBaseCatOverrides(j.cats.overrides);
       if(j.cats.hidden!==undefined) saveHiddenBaseCats(j.cats.hidden);
+    } else if(localHasCats){
+      // This device has custom categories but the Sheet doesn't — push them up so
+      // other devices (e.g. mobile) can mirror them. Devices without customizations
+      // never overwrite, so the real config is never wiped.
+      pushCatsToSheets();
     }
     if(j.budgets&&Object.keys(j.budgets).length>0){
       const normMk=mk=>{
