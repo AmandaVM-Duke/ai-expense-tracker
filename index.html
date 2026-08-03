@@ -551,10 +551,14 @@ async function syncSheets() {
         saveBaseBudget(j.budgets);
       } else {
         const allB=getAllBudgets();
+        // Save default first (lower priority)
+        if(j.budgets['default']) saveBaseBudget(j.budgets['default']);
+        // Save month-specific after (higher priority, overwrites base)
         Object.keys(j.budgets).forEach(mk=>{
+          if(mk==='default') return;
           const nk=normMk(mk);
-          if(nk==='default') saveBaseBudget(j.budgets[mk]);
-          else { allB[nk]=j.budgets[mk]; saveBaseBudget(j.budgets[mk]); }
+          allB[nk]=j.budgets[mk];
+          saveBaseBudget(j.budgets[mk]);
         });
         localStorage.setItem('a_budgets',JSON.stringify(allB));
       }
