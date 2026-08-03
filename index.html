@@ -437,8 +437,10 @@ const prevMName = () => MONTHS[S.mi===0?11:S.mi-1];
 // STORAGE
 // ═══════════════════════════════════════════════════════════════
 const getSheetUrl  = () => window._shUrl || localStorage.getItem('a_sheet') || '';
-const getAllBudgets = () => { try{return JSON.parse(localStorage.getItem('a_budgets')||'{}');}catch{return{};} };
-const getBudget    = k => getAllBudgets()[k] || null;
+const getAllBudgets  = () => { try{return JSON.parse(localStorage.getItem('a_budgets')||'{}');}catch{return{};} };
+const getBaseBudget  = () => { try{return JSON.parse(localStorage.getItem('a_base_budget')||'null');}catch{return null;} };
+const saveBaseBudget = d => localStorage.setItem('a_base_budget', JSON.stringify(d));
+const getBudget    = k => getAllBudgets()[k] || getBaseBudget() || null;
 const saveBudget   = (k,d) => { const a=getAllBudgets(); a[k]=d; localStorage.setItem('a_budgets',JSON.stringify(a)); };
 const getCustomCats      = () => { try{return JSON.parse(localStorage.getItem('a_cats')||'[]');}catch{return[];} };
 const saveCustomCats     = d => localStorage.setItem('a_cats',JSON.stringify(d));
@@ -537,7 +539,7 @@ async function syncSheets() {
   try {
     const r=await fetch(url,{method:'GET'}); const j=await r.json();
     saveExpenses(j.data||[]);
-    if(j.budgets&&Object.keys(j.budgets).length>0){localStorage.setItem('a_budgets',JSON.stringify(j.budgets));}
+    if(j.budgets&&Object.keys(j.budgets).length>0){saveBaseBudget(j.budgets);}
     setSyncLabel('● Live','var(--green)',true);
     renderPage();
   } catch{setSyncLabel('● Erro','var(--red)',false);}
