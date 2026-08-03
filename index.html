@@ -697,8 +697,8 @@ async function saveBudgetPage(){
   if(url){
     if(btn)btn.textContent='⟳ Enviando…';
     try{
-      const reqId=Date.now().toString();
-      await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'budgets',month:mKey(),budgets:b,reqId})});
+      const params=new URLSearchParams({action:'saveBudget',month:mKey(),data:JSON.stringify(b)});
+      await fetch(url+'?'+params.toString(),{method:'GET',cache:'no-store'});
       if(btn){btn.textContent='✓ Salvo no Sheets!';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},2000);}
     }catch(err){
       if(btn){btn.textContent='⚠ Erro no Sheets';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},2500);}
