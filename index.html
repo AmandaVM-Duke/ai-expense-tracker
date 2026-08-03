@@ -535,6 +535,7 @@ async function syncSheets() {
   try {
     const r=await fetch(url,{method:'GET'}); const j=await r.json();
     saveExpenses(j.data||[]);
+    if(j.budgets&&Object.keys(j.budgets).length>0){localStorage.setItem('a_budgets',JSON.stringify(j.budgets));}
     setSyncLabel('● Live','var(--green)',true);
     renderPage();
   } catch{setSyncLabel('● Erro','var(--red)',false);}
@@ -675,6 +676,8 @@ function updBudgetTotal(){
 function saveBudgetPage(){
   const b={}; getCats().forEach(c=>{const e=document.getElementById('bi_'+c.key.replace(/[^a-z0-9]/gi,'_'));b[c.key]=e&&e.value?parseFloat(e.value)||0:0;});
   saveBudget(mKey(),b);
+  const url=getSheetUrl();
+  if(url){fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'budgets',budgets:getAllBudgets()})}).catch(()=>{});}
   const btn=document.querySelector('.btn.primary[onclick="saveBudgetPage()"]');
   if(btn){btn.textContent='✓ Salvo!';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},1600);}
 }
