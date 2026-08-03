@@ -342,6 +342,25 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   </div>
 </div>
 
+<!-- Edit category modal -->
+<div class="modal-ov" id="editCatModal">
+  <div class="modal">
+    <div class="modal-t">Editar categoria</div>
+    <div style="display:grid;grid-template-columns:1fr 80px;gap:10px;margin-bottom:14px">
+      <div><label class="fl">Nome</label><input class="fi" id="editCatName" type="text" placeholder="Nome da categoria"></div>
+      <div><label class="fl">Emoji</label><input class="fi" id="editCatIcon" type="text" placeholder="🏷️" style="text-align:center;font-size:18px"></div>
+    </div>
+    <div style="margin-bottom:18px">
+      <label class="fl">Cor</label>
+      <div class="color-grid" id="editColorGrid"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="padding:11px 18px" onclick="closeEditCat()">Cancelar</button>
+      <button class="btn primary" style="flex:1;padding:11px 18px;justify-content:center" onclick="saveEditCat()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add category modal -->
 <div class="modal-ov" id="addCatModal">
   <div class="modal">
@@ -419,9 +438,17 @@ const getSheetUrl  = () => window._shUrl || localStorage.getItem('a_sheet') || '
 const getAllBudgets = () => { try{return JSON.parse(localStorage.getItem('a_budgets')||'{}');}catch{return{};} };
 const getBudget    = k => getAllBudgets()[k] || null;
 const saveBudget   = (k,d) => { const a=getAllBudgets(); a[k]=d; localStorage.setItem('a_budgets',JSON.stringify(a)); };
-const getCustomCats = () => { try{return JSON.parse(localStorage.getItem('a_cats')||'[]');}catch{return[];} };
-const saveCustomCats = d => localStorage.setItem('a_cats',JSON.stringify(d));
-const getCats      = () => [...BASE_CATS, ...getCustomCats()];
+const getCustomCats      = () => { try{return JSON.parse(localStorage.getItem('a_cats')||'[]');}catch{return[];} };
+const saveCustomCats     = d => localStorage.setItem('a_cats',JSON.stringify(d));
+const getHiddenBaseCats  = () => { try{return JSON.parse(localStorage.getItem('a_hidden_cats')||'[]');}catch{return[];} };
+const saveHiddenBaseCats = d => localStorage.setItem('a_hidden_cats',JSON.stringify(d));
+const getBaseCatOverrides  = () => { try{return JSON.parse(localStorage.getItem('a_cat_overrides')||'{}');}catch{return{};} };
+const saveBaseCatOverrides = d => localStorage.setItem('a_cat_overrides',JSON.stringify(d));
+const getBaseCats = () => {
+  const hidden=new Set(getHiddenBaseCats()); const ov=getBaseCatOverrides();
+  return BASE_CATS.filter(c=>!hidden.has(c.key)).map(c=>ov[c.key]?{...c,...ov[c.key]}:c);
+};
+const getCats = () => [...getBaseCats(), ...getCustomCats()];
 const getExpenses  = () => { try{return JSON.parse(localStorage.getItem('a_expenses')||'[]');}catch{return[];} };
 const saveExpenses = d => localStorage.setItem('a_expenses',JSON.stringify(d));
 const addExpLocal  = e => { const a=getExpenses(); a.push(e); saveExpenses(a); };
@@ -612,7 +639,6 @@ function renderBudget(){
   });
 
   let tBudget=0, tSpent=0;
-  const customKeys=new Set(getCustomCats().map(c=>c.key));
   const rows=sortedCats.map(c=>{
     const bv=saved[c.key]!==undefined?saved[c.key]:(DEFAULT_BUDGETS[c.key]||'');
     const sp=totals[c.key]||0;
@@ -620,8 +646,7 @@ function renderBudget(){
     if(bv)tBudget+=Number(bv); tSpent+=sp;
     const rc=rem<0?'var(--red)':rem<(bv*.2)?'var(--amber)':'var(--green)';
     const bc2=bColor(pct,c.color);
-    const isCustom=customKeys.has(c.key);
-    const delBtn=isCustom?`<button class="del-btn" onclick="deleteCat('${escH(c.key)}')" title="Excluir categoria">🗑</button>`:'<div></div>';
+    const actionCell=`<div style="display:flex;gap:3px;justify-content:flex-end"><button class="del-btn" onclick="openEditCat('${escH(c.key)}')" title="Renomear">✏️</button><button class="del-btn" onclick="deleteCat('${escH(c.key)}')" title="Excluir">🗑</button></div>`;
     return `<div class="bt-row">
       <div class="bt-ico">${c.icon}</div>
       <div class="bt-name">${c.key}</div>
@@ -629,7 +654,7 @@ function renderBudget(){
       <div class="bt-num hc">${sp>0?fmt(sp):'—'}</div>
       <div class="bt-num hc" style="color:${bv&&sp?rc:'var(--t3)'}">${bv&&sp?(rem<0?'-':'')+fmt(Math.abs(rem)):'—'}</div>
       <div class="bt-pct hc">${bv&&sp?`<div class="bt-pct-n" style="color:${bc2}">${pct}%</div><div class="bt-mini"><div class="bt-mini-f" style="width:${Math.min(pct,100)}%;background:${bc2}"></div></div>`:'—'}</div>
-      ${delBtn}
+      ${actionCell}
     </div>`;
   }).join('');
 
@@ -656,10 +681,57 @@ function saveBudgetPage(){
 
 function deleteCat(key){
   if(!confirm(`Excluir a categoria "${key}"?\n\nOs lançamentos existentes não serão apagados, mas a categoria não aparecerá mais no orçamento.`))return;
-  const cats=getCustomCats().filter(c=>c.key!==key);
-  saveCustomCats(cats);
+  const ov=getBaseCatOverrides();
+  const origBaseKey=BASE_CATS.some(c=>c.key===key)?key:Object.keys(ov).find(k=>ov[k].key===key);
+  if(origBaseKey){
+    const hidden=getHiddenBaseCats();
+    if(!hidden.includes(origBaseKey))hidden.push(origBaseKey);
+    saveHiddenBaseCats(hidden);
+    if(ov[origBaseKey]){delete ov[origBaseKey];saveBaseCatOverrides(ov);}
+  } else {
+    saveCustomCats(getCustomCats().filter(c=>c.key!==key));
+  }
   renderBudget();
   if(S.page==='dashboard')renderDash();
+}
+
+function openEditCat(key){
+  S.editingCatKey=key;
+  const cat=getCats().find(c=>c.key===key);if(!cat)return;
+  S.selectedColor=cat.color;
+  document.getElementById('editCatName').value=key;
+  document.getElementById('editCatIcon').value=cat.icon;
+  const grid=document.getElementById('editColorGrid');
+  grid.innerHTML=PRESET_COLORS.map(c=>`<div class="color-swatch${c===S.selectedColor?' selected':''}" style="background:${c}" onclick="selectColor('${c}',this)"></div>`).join('');
+  document.getElementById('editCatModal').classList.add('open');
+}
+function closeEditCat(){document.getElementById('editCatModal').classList.remove('open');}
+function saveEditCat(){
+  const newName=document.getElementById('editCatName').value.trim();
+  const newIcon=document.getElementById('editCatIcon').value.trim();
+  if(!newName){document.getElementById('editCatName').focus();return;}
+  const oldKey=S.editingCatKey;
+  if(newName!==oldKey&&getCats().find(c=>c.key===newName)){alert('Categoria já existe.');return;}
+  const cat=getCats().find(c=>c.key===oldKey);
+  const finalIcon=newIcon||cat?.icon||'🏷️';
+  const ov=getBaseCatOverrides();
+  const origBaseKey=BASE_CATS.some(c=>c.key===oldKey)?oldKey:Object.keys(ov).find(k=>ov[k].key===oldKey);
+  if(origBaseKey){
+    ov[origBaseKey]={key:newName,icon:finalIcon,color:S.selectedColor};
+    saveBaseCatOverrides(ov);
+  } else {
+    saveCustomCats(getCustomCats().map(c=>c.key===oldKey?{...c,key:newName,icon:finalIcon,color:S.selectedColor}:c));
+  }
+  if(newName!==oldKey){
+    saveExpenses(getExpenses().map(e=>e.category===oldKey?{...e,category:newName}:e));
+    const budgets=getAllBudgets();
+    Object.keys(budgets).forEach(mk=>{if(budgets[mk][oldKey]!==undefined){budgets[mk][newName]=budgets[mk][oldKey];delete budgets[mk][oldKey];}});
+    localStorage.setItem('a_budgets',JSON.stringify(budgets));
+  }
+  closeEditCat();
+  renderBudget();
+  if(S.page==='dashboard')renderDash();
+  if(S.page==='entries')renderEntries();
 }
 
 function copyPrevMonth(){
@@ -680,7 +752,7 @@ function openAddCat(){
   document.getElementById('addCatModal').classList.add('open');
 }
 function closeAddCat(){document.getElementById('addCatModal').classList.remove('open');}
-function selectColor(c,el){S.selectedColor=c;document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));el.classList.add('selected');}
+function selectColor(c,el){S.selectedColor=c;el.closest('.color-grid').querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));el.classList.add('selected');}
 function saveNewCat(){
   const name=document.getElementById('newCatName').value.trim();
   const icon=document.getElementById('newCatIcon').value.trim()||'🏷️';
@@ -818,6 +890,7 @@ function closeSheet(){document.getElementById('sheetModal').classList.remove('op
 function saveSheetUrl(){const u=document.getElementById('sheetUrlInput').value.trim();if(u)localStorage.setItem('a_sheet',u);closeSheet();syncSheets();}
 document.getElementById('sheetModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSheet();});
 document.getElementById('addCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAddCat();});
+document.getElementById('editCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditCat();});
 
 // ═══════════════════════════════════════════════════════════════
 // INIT
