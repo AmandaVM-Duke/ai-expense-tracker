@@ -539,6 +539,11 @@ async function syncSheets() {
   try {
     const r=await fetch(url+'?t='+Date.now(),{method:'GET',cache:'no-store'}); const j=await r.json();
     saveExpenses(j.data||[]);
+    if(j.cats){
+      if(j.cats.customCats!==undefined) saveCustomCats(j.cats.customCats);
+      if(j.cats.overrides!==undefined) saveBaseCatOverrides(j.cats.overrides);
+      if(j.cats.hidden!==undefined) saveHiddenBaseCats(j.cats.hidden);
+    }
     if(j.budgets&&Object.keys(j.budgets).length>0){
       const normMk=mk=>{
         if(mk==='default')return mk;
@@ -551,9 +556,7 @@ async function syncSheets() {
         saveBaseBudget(j.budgets);
       } else {
         const allB=getAllBudgets();
-        // Save default first (lower priority)
         if(j.budgets['default']) saveBaseBudget(j.budgets['default']);
-        // Save month-specific after (higher priority, overwrites base)
         Object.keys(j.budgets).forEach(mk=>{
           if(mk==='default') return;
           const nk=normMk(mk);
@@ -566,6 +569,13 @@ async function syncSheets() {
     setSyncLabel('● Live','var(--green)',true);
     renderPage();
   } catch{setSyncLabel('● Erro','var(--red)',false);}
+}
+
+async function pushCatsToSheets(){
+  const url=getSheetUrl(); if(!url)return;
+  try{
+    await fetch(url,{method:'POST',body:JSON.stringify({type:'cats',cats:{customCats:getCustomCats(),overrides:getBaseCatOverrides(),hidden:getHiddenBaseCats()}}),headers:{'Content-Type':'application/json'}});
+  }catch{}
 }
 
 function setSyncLabel(t,c,ok){const e=document.getElementById('syncLabel');if(e){e.textContent=t;e.style.color=c;e.className='live-dot'+(ok?' ok':'');}}
@@ -731,6 +741,7 @@ function deleteCat(key){
   } else {
     saveCustomCats(getCustomCats().filter(c=>c.key!==key));
   }
+  pushCatsToSheets();
   renderBudget();
   if(S.page==='dashboard')renderDash();
 }
@@ -768,6 +779,7 @@ function saveEditCat(){
     Object.keys(budgets).forEach(mk=>{if(budgets[mk][oldKey]!==undefined){budgets[mk][newName]=budgets[mk][oldKey];delete budgets[mk][oldKey];}});
     localStorage.setItem('a_budgets',JSON.stringify(budgets));
   }
+  pushCatsToSheets();
   closeEditCat();
   renderBudget();
   if(S.page==='dashboard')renderDash();
@@ -801,6 +813,7 @@ function saveNewCat(){
   if([...BASE_CATS,...cats].find(c=>c.key===name)){alert('Categoria já existe.');return;}
   cats.push({key:name,color:S.selectedColor,icon});
   saveCustomCats(cats);
+  pushCatsToSheets();
   closeAddCat();
   renderBudget();
 }
