@@ -574,7 +574,9 @@ async function syncSheets() {
 async function pushCatsToSheets(){
   const url=getSheetUrl(); if(!url)return;
   try{
-    await fetch(url,{method:'POST',body:JSON.stringify({type:'cats',cats:{customCats:getCustomCats(),overrides:getBaseCatOverrides(),hidden:getHiddenBaseCats()}}),headers:{'Content-Type':'application/json'}});
+    const cats={customCats:getCustomCats(),overrides:getBaseCatOverrides(),hidden:getHiddenBaseCats()};
+    const params=new URLSearchParams({action:'saveCats',data:JSON.stringify(cats)});
+    await fetch(url+'?'+params.toString(),{method:'GET',cache:'no-store'});
   }catch{}
 }
 
