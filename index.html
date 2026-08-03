@@ -537,7 +537,7 @@ async function syncSheets() {
   const url=getSheetUrl(); if(!url){openSheet();return;}
   setSyncLabel('⟳ Sincronizando…','var(--acc)',false);
   try {
-    const r=await fetch(url,{method:'GET'}); const j=await r.json();
+    const r=await fetch(url+'?t='+Date.now(),{method:'GET',cache:'no-store'}); const j=await r.json();
     saveExpenses(j.data||[]);
     if(j.budgets&&Object.keys(j.budgets).length>0){saveBaseBudget(j.budgets);}
     setSyncLabel('● Live','var(--green)',true);
@@ -910,12 +910,11 @@ async function testSheetUrl(){
   if(!u){res.style.color='var(--red)';res.textContent='⚠ Cole a URL primeiro.';return;}
   res.style.color='var(--t2)';res.textContent='⟳ Testando…';
   try{
-    const r=await fetch(u,{method:'GET'});
+    const r=await fetch(u+'?t='+Date.now(),{method:'GET',cache:'no-store'});
     const j=await r.json();
-    const hasData=Array.isArray(j.data);
     const hasBudgets=j.budgets&&Object.keys(j.budgets).length>0;
     res.style.color='var(--green)';
-    res.textContent=`✓ Conectado — ${(j.data||[]).length} lançamentos, orçamento: ${hasBudgets?'✓':'não encontrado'}`;
+    res.textContent=`✓ Conectado — ${(j.data||[]).length} lançamentos, orçamento: ${hasBudgets?'✓ ('+Object.keys(j.budgets).length+' categorias)':'não encontrado'}`;
   }catch(e){
     res.style.color='var(--red)';res.textContent='✗ Erro: '+e.message;
   }
