@@ -334,9 +334,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   <div class="modal">
     <div class="modal-t">Configurações</div>
     <div class="modal-s">Cole a URL do Apps Script para sincronizar com o Google Sheets.</div>
-    <div style="margin-bottom:16px"><label class="fl">Apps Script URL</label><input class="fi" id="sheetUrlInput" type="text" placeholder="https://script.google.com/macros/s/…"></div>
+    <div style="margin-bottom:10px"><label class="fl">Apps Script URL</label><input class="fi" id="sheetUrlInput" type="text" placeholder="https://script.google.com/macros/s/…"></div>
+    <div id="sheetTestResult" style="font-size:12px;min-height:18px;margin-bottom:12px;font-family:var(--mono);color:var(--t2)"></div>
     <div style="display:flex;gap:8px">
       <button class="btn" style="padding:11px 18px" onclick="closeSheet()">Cancelar</button>
+      <button class="btn" style="padding:11px 14px" onclick="testSheetUrl()">Testar</button>
       <button class="btn primary" style="flex:1;padding:11px 18px;justify-content:center" onclick="saveSheetUrl()">Salvar e conectar</button>
     </div>
   </div>
@@ -673,13 +675,22 @@ function updBudgetTotal(){
   const el=document.getElementById('budgTotalDisp');if(el)el.textContent=fmt(t);
 }
 
-function saveBudgetPage(){
+async function saveBudgetPage(){
   const b={}; getCats().forEach(c=>{const e=document.getElementById('bi_'+c.key.replace(/[^a-z0-9]/gi,'_'));b[c.key]=e&&e.value?parseFloat(e.value)||0:0;});
   saveBudget(mKey(),b);
-  const url=getSheetUrl();
-  if(url){fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'budgets',budgets:getAllBudgets()})}).catch(()=>{});}
   const btn=document.querySelector('.btn.primary[onclick="saveBudgetPage()"]');
-  if(btn){btn.textContent='✓ Salvo!';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},1600);}
+  const url=getSheetUrl();
+  if(url){
+    if(btn)btn.textContent='⟳ Enviando…';
+    try{
+      await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'budgets',budgets:getAllBudgets()})});
+      if(btn){btn.textContent='✓ Salvo no Sheets!';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},2000);}
+    }catch(err){
+      if(btn){btn.textContent='⚠ Erro no Sheets';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},2500);}
+    }
+  } else {
+    if(btn){btn.textContent='✓ Salvo localmente';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},1600);}
+  }
 }
 
 function deleteCat(key){
@@ -888,9 +899,25 @@ async function handleSummary(){
 // ═══════════════════════════════════════════════════════════════
 // MODALS
 // ═══════════════════════════════════════════════════════════════
-function openSheet(){document.getElementById('sheetUrlInput').value=getSheetUrl();document.getElementById('sheetModal').classList.add('open');}
+function openSheet(){document.getElementById('sheetUrlInput').value=getSheetUrl();document.getElementById('sheetTestResult').textContent='';document.getElementById('sheetModal').classList.add('open');}
 function closeSheet(){document.getElementById('sheetModal').classList.remove('open');}
 function saveSheetUrl(){const u=document.getElementById('sheetUrlInput').value.trim();if(u)localStorage.setItem('a_sheet',u);closeSheet();syncSheets();}
+async function testSheetUrl(){
+  const u=document.getElementById('sheetUrlInput').value.trim();
+  const res=document.getElementById('sheetTestResult');
+  if(!u){res.style.color='var(--red)';res.textContent='⚠ Cole a URL primeiro.';return;}
+  res.style.color='var(--t2)';res.textContent='⟳ Testando…';
+  try{
+    const r=await fetch(u,{method:'GET'});
+    const j=await r.json();
+    const hasData=Array.isArray(j.data);
+    const hasBudgets=j.budgets&&Object.keys(j.budgets).length>0;
+    res.style.color='var(--green)';
+    res.textContent=`✓ Conectado — ${(j.data||[]).length} lançamentos, orçamento: ${hasBudgets?'✓':'não encontrado'}`;
+  }catch(e){
+    res.style.color='var(--red)';res.textContent='✗ Erro: '+e.message;
+  }
+}
 document.getElementById('sheetModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSheet();});
 document.getElementById('addCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAddCat();});
 document.getElementById('editCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditCat();});
