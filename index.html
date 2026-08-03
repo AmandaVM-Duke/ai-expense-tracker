@@ -540,14 +540,21 @@ async function syncSheets() {
     const r=await fetch(url+'?t='+Date.now(),{method:'GET',cache:'no-store'}); const j=await r.json();
     saveExpenses(j.data||[]);
     if(j.budgets&&Object.keys(j.budgets).length>0){
+      const normMk=mk=>{
+        if(mk==='default')return mk;
+        const p=mk.split('-');
+        if(p.length===2){const m=MONTHS.find(n=>n.toLowerCase()===p[1].toLowerCase());if(m)return p[0]+'-'+m;}
+        return mk;
+      };
       const firstVal=Object.values(j.budgets)[0];
       if(typeof firstVal==='number'){
         saveBaseBudget(j.budgets);
       } else {
         const allB=getAllBudgets();
         Object.keys(j.budgets).forEach(mk=>{
-          if(mk==='default') saveBaseBudget(j.budgets['default']);
-          else allB[mk]=j.budgets[mk];
+          const nk=normMk(mk);
+          if(nk==='default') saveBaseBudget(j.budgets[mk]);
+          else allB[nk]=j.budgets[mk];
         });
         localStorage.setItem('a_budgets',JSON.stringify(allB));
       }
