@@ -539,7 +539,19 @@ async function syncSheets() {
   try {
     const r=await fetch(url+'?t='+Date.now(),{method:'GET',cache:'no-store'}); const j=await r.json();
     saveExpenses(j.data||[]);
-    if(j.budgets&&Object.keys(j.budgets).length>0){saveBaseBudget(j.budgets);}
+    if(j.budgets&&Object.keys(j.budgets).length>0){
+      const firstVal=Object.values(j.budgets)[0];
+      if(typeof firstVal==='number'){
+        saveBaseBudget(j.budgets);
+      } else {
+        const allB=getAllBudgets();
+        Object.keys(j.budgets).forEach(mk=>{
+          if(mk==='default') saveBaseBudget(j.budgets['default']);
+          else allB[mk]=j.budgets[mk];
+        });
+        localStorage.setItem('a_budgets',JSON.stringify(allB));
+      }
+    }
     setSyncLabel('● Live','var(--green)',true);
     renderPage();
   } catch{setSyncLabel('● Erro','var(--red)',false);}
@@ -685,7 +697,7 @@ async function saveBudgetPage(){
   if(url){
     if(btn)btn.textContent='⟳ Enviando…';
     try{
-      await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'budgets',budgets:getAllBudgets()})});
+      await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'budgets',month:mKey(),budgets:b})});
       if(btn){btn.textContent='✓ Salvo no Sheets!';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},2000);}
     }catch(err){
       if(btn){btn.textContent='⚠ Erro no Sheets';setTimeout(()=>{btn.innerHTML='💾 Salvar orçamento';},2500);}
