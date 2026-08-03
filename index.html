@@ -554,7 +554,7 @@ async function syncSheets() {
         Object.keys(j.budgets).forEach(mk=>{
           const nk=normMk(mk);
           if(nk==='default') saveBaseBudget(j.budgets[mk]);
-          else allB[nk]=j.budgets[mk];
+          else { allB[nk]=j.budgets[mk]; saveBaseBudget(j.budgets[mk]); }
         });
         localStorage.setItem('a_budgets',JSON.stringify(allB));
       }
