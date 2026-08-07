@@ -533,8 +533,13 @@ function renderPage() {
 // ═══════════════════════════════════════════════════════════════
 async function loadConfig() { try{const r=await fetch('/api/config');const c=await r.json();if(c.sheetUrl)window._shUrl=c.sheetUrl;}catch{} }
 
+let _syncing=false;
+let _lastLocalChange=0; // timestamp of the last local add/delete, so auto-sync waits for it to reach the Sheet
+
 async function syncSheets() {
   const url=getSheetUrl(); if(!url){openSheet();return;}
+  if(_syncing) return;
+  _syncing=true;
   setSyncLabel('⟳ Sincronizando…','var(--acc)',false);
   try {
     const r=await fetch(url+'?t='+Date.now(),{method:'GET',cache:'no-store'}); const j=await r.json();
@@ -577,7 +582,20 @@ async function syncSheets() {
     setSyncLabel('● Live','var(--green)',true);
     renderPage();
   } catch{setSyncLabel('● Erro','var(--red)',false);}
+  finally{_syncing=false;}
 }
+
+// Auto-sync: pull from the Sheet when the app regains focus and every 30s while visible,
+// so the computer and phone stay in agreement without tapping "Sincronizar".
+function autoSync(){
+  if(document.visibilityState!=='visible') return;
+  if(!getSheetUrl()) return;
+  if(Date.now()-_lastLocalChange<8000) return; // give a fresh local add/delete time to reach the Sheet first
+  syncSheets();
+}
+document.addEventListener('visibilitychange',autoSync);
+window.addEventListener('focus',autoSync);
+setInterval(autoSync,30000);
 
 async function pushCatsToSheets(){
   const url=getSheetUrl(); if(!url)return;
@@ -856,10 +874,22 @@ function renderEntries(){
     <div class="entries-list">${rows}</div>`;
 }
 
-function delEntry(idx){
-  if(!confirm('Remover da visualização local?\n\nPara deletar permanentemente, remova a linha na planilha.'))return;
+async function delEntry(idx){
   const all=getExpenses();if(idx<0||idx>=all.length)return;
+  const ent=all[idx];
+  if(!confirm('Excluir este lançamento?\n\nEle será removido de todos os dispositivos.'))return;
+  // Remove locally right away for a snappy UI...
+  _lastLocalChange=Date.now();
   all.splice(idx,1);saveExpenses(all);renderPage();
+  // ...then tell the Sheet to delete it too, so it doesn't come back on the next sync.
+  const url=getSheetUrl();
+  if(url){
+    try{
+      const params=new URLSearchParams({action:'delete',data:JSON.stringify({date:ent.date,merchant:ent.merchant,category:ent.category,amount:ent.amount})});
+      await fetch(url+'?'+params.toString(),{method:'GET',cache:'no-store'});
+      _lastLocalChange=Date.now();
+    }catch(err){console.warn('delete sync error',err);}
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -904,6 +934,7 @@ async function sendChat(){
 async function handleExpense(exp){
   try{
     // Add to local cache immediately
+    _lastLocalChange=Date.now();
     addExpLocal({date:exp.date,merchant:exp.merchant,category:exp.category,amount:exp.amount,month:exp.month,notes:exp.notes||''});
     // Refresh dashboard if active and same month
     if(S.page==='dashboard'&&(S.view==='ytd'||mName()===exp.month))renderDash();
